@@ -41,7 +41,13 @@ export default function WelcomeScreen() {
           <View style={styles.contentContainer}>
             {/* Títulos */}
             <View style={styles.textContainer}>
-              <Text style={styles.title}>ICECREAM</Text>
+              <Text
+                style={styles.title}
+                onLongPress={() => router.push("/admin")}
+                suppressHighlighting
+              >
+                ICECREAM
+              </Text>
               <Text style={styles.subtitle}>
                 Sabor y frescura en cada bocado
               </Text>

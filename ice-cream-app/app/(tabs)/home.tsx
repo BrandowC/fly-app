@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,15 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Animated,
+  StatusBar,
 } from "react-native";
+
+const STATUS_BAR_PADDING = (StatusBar.currentHeight || 44) + 24;
 import { Ionicons } from "@expo/vector-icons";
 import api from "../../services/api";
 import { useCart } from "../../context/CartContext";
+import { useRouter } from "expo-router";
 
 type Categoria = "tamano" | "helado" | "topping";
 
@@ -59,7 +64,6 @@ const HELADO_PALETAS = [
 // Mapeo de emojis según el nombre del helado/topping
 const getEmoji = (nombre: string): string => {
   const n = nombre.toLowerCase();
-  // Helados
   if (n.includes("fresa")) return "🍓";
   if (n.includes("chocolate") && n.includes("helado")) return "🍫";
   if (n.includes("chocolate derretido")) return "🍫";
@@ -69,7 +73,6 @@ const getEmoji = (nombre: string): string => {
   if (n.includes("limón") || n.includes("limon")) return "🍋";
   if (n.includes("maracuyá") || n.includes("maracuya")) return "🥭";
   if (n.includes("coco")) return "🥥";
-  // Toppings
   if (n.includes("caramelo")) return "🍯";
   if (n.includes("arequipe")) return "🥄";
   if (n.includes("leche")) return "🥛";
@@ -83,23 +86,49 @@ const getEmoji = (nombre: string): string => {
   return "🍨";
 };
 
-// Iconos para tamaños
-const TAMANO_CONFIG: Record<string, { icon: keyof typeof Ionicons.glyphMap; size: number }> = {
-  Pequeño: { icon: "beaker-outline", size: 40 },
-  Mediano: { icon: "beaker", size: 55 },
-  Grande: { icon: "beaker", size: 75 },
+// Iconos para tamaños (tamaño del icono varía según el vaso)
+const TAMANO_CONFIG: Record<
+  string,
+  { icon: keyof typeof Ionicons.glyphMap; size: number }
+> = {
+  Pequeño: { icon: "beaker-outline", size: 26 },
+  Mediano: { icon: "beaker", size: 34 },
+  Grande: { icon: "beaker", size: 42 },
 };
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [productos, setProductos] = useState<any[]>([]);
   const [toppings, setToppings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoriaActiva, setCategoriaActiva] = useState<Categoria>("tamano");
   const { addToCart } = useCart();
 
+  // Animación de entrada al cambiar de tab
+  const contentFade = useRef(new Animated.Value(1)).current;
+  const contentTranslate = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     fetchDatos();
   }, []);
+
+  // Animar cuando cambia la categoría
+  useEffect(() => {
+    contentFade.setValue(0);
+    contentTranslate.setValue(20);
+    Animated.parallel([
+      Animated.timing(contentFade, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentTranslate, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [categoriaActiva, contentFade, contentTranslate]);
 
   const fetchDatos = async () => {
     try {
@@ -113,7 +142,7 @@ export default function HomeScreen() {
       console.error("Error cargando datos:", error);
       Alert.alert(
         "Error de Conexión",
-        "Asegúrate de que el backend en la IP 192.168.1.35 esté corriendo y tengas datos en la DB.",
+        "Asegúrate de que el backend esté corriendo.",
       );
     } finally {
       setLoading(false);
@@ -132,7 +161,6 @@ export default function HomeScreen() {
 
   const categoriaConfig = CATEGORIAS.find((c) => c.key === categoriaActiva)!;
 
-  // Filtrar productos por tipo
   const tamanos = productos.filter((p) => p.tipo === "TAMAÑO");
   const helados = productos.filter(
     (p) => p.tipo === "CREMA" || p.tipo === "AGUA",
@@ -148,11 +176,22 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: categoriaConfig.bgLight }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.brandTitle}>Ice Cream 🍦</Text>
-        <Text style={styles.subTitle}>Personaliza tu helado</Text>
+    <View
+      style={[styles.container, { backgroundColor: categoriaConfig.bgLight }]}
+    >
+      {/* Título de bienvenida - tappable, lleva a la pantalla de Welcome */}
+      <View style={styles.welcomeSection}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => router.replace("/")}
+        >
+          <Text style={styles.brandTitle}>Ice Cream 🍦</Text>
+        </TouchableOpacity>
+        <View style={styles.tagline}>
+          <View style={styles.taglineLine} />
+          <Text style={styles.taglineText}>Personaliza tu Helado</Text>
+          <View style={styles.taglineLine} />
+        </View>
       </View>
 
       {/* BARRA DE TABS */}
@@ -194,184 +233,194 @@ export default function HomeScreen() {
         })}
       </View>
 
-      {/* CONTENIDO SEGÚN TAB */}
-      <ScrollView
-        style={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      {/* CONTENIDO ANIMADO SEGÚN TAB */}
+      <Animated.View
+        style={{
+          flex: 1,
+          opacity: contentFade,
+          transform: [{ translateY: contentTranslate }],
+        }}
       >
-        {/* ========== TAMAÑO ========== */}
-        {categoriaActiva === "tamano" && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: categoriaConfig.color }]}>
-              1. Elige tu tamaño
-            </Text>
-            <Text style={styles.sectionSubtext}>
-              Los vasos son gratis, elige el tuyo 🎉
-            </Text>
-            <View style={styles.tamanoColumn}>
-              {tamanos.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  No hay tamaños disponibles.
-                </Text>
-              ) : (
-                tamanos.map((t) => {
-                  const cfg = TAMANO_CONFIG[t.nombre] || {
-                    icon: "beaker" as const,
-                    size: 50,
-                  };
-                  return (
-                    <TouchableOpacity
-                      key={`tamano-${t.id}`}
-                      style={styles.tamanoCard}
-                      onPress={() => handleAdd(t, "tamano")}
-                      activeOpacity={0.85}
-                    >
-                      <View
-                        style={[
-                          styles.tamanoIcon,
-                          { backgroundColor: categoriaConfig.color },
-                        ]}
+        <ScrollView
+          style={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ========== TAMAÑO ========== */}
+          {categoriaActiva === "tamano" && (
+            <View style={styles.section}>
+              <Text
+                style={[styles.sectionHeader, { color: categoriaConfig.color }]}
+              >
+                Elige tu tamaño
+              </Text>
+              <Text style={styles.sectionSubtext}>
+                Selecciona cómo lo quieres
+              </Text>
+              <View style={styles.tamanoGrid}>
+                {tamanos.length === 0 ? (
+                  <Text style={styles.emptyText}>
+                    No hay tamaños disponibles.
+                  </Text>
+                ) : (
+                  tamanos.map((t) => {
+                    const cfg = TAMANO_CONFIG[t.nombre] || {
+                      icon: "beaker" as const,
+                      size: 34,
+                    };
+                    return (
+                      <TouchableOpacity
+                        key={`tamano-${t.id}`}
+                        style={styles.tamanoCardSmall}
+                        onPress={() => handleAdd(t, "tamano")}
+                        activeOpacity={0.85}
                       >
-                        <Ionicons
-                          name={cfg.icon}
-                          size={cfg.size}
-                          color="white"
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.tamanoName}>{t.nombre}</Text>
-                        <View style={styles.freeBadge}>
-                          <Ionicons name="gift" size={14} color="#2E7D32" />
-                          <Text style={styles.freeText}>GRATIS</Text>
+                        <View
+                          style={[
+                            styles.tamanoIconSmall,
+                            { backgroundColor: categoriaConfig.color },
+                          ]}
+                        >
+                          <Ionicons
+                            name={cfg.icon}
+                            size={cfg.size}
+                            color="white"
+                          />
                         </View>
-                      </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={28}
-                        color={categoriaConfig.color}
-                      />
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* ========== HELADOS ========== */}
-        {categoriaActiva === "helado" && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: categoriaConfig.color }]}>
-              2. Elige tu sabor
-            </Text>
-            <Text style={styles.sectionSubtext}>
-              Sabores deliciosos listos para ti 🍦
-            </Text>
-            <View style={styles.grid}>
-              {helados.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  No hay helados disponibles.
-                </Text>
-              ) : (
-                helados.map((prod, idx) => {
-                  const paleta = HELADO_PALETAS[idx % HELADO_PALETAS.length];
-                  return (
-                    <TouchableOpacity
-                      key={`prod-${prod.id}`}
-                      style={[styles.iceCard, { backgroundColor: paleta.bg }]}
-                      onPress={() => handleAdd(prod, "helado")}
-                      activeOpacity={0.85}
-                    >
-                      <View
-                        style={[
-                          styles.emojiCircle,
-                          { backgroundColor: "white" },
-                        ]}
-                      >
-                        <Text style={styles.emojiBig}>
-                          {getEmoji(prod.nombre)}
+                        <Text
+                          style={[
+                            styles.tamanoNameSmall,
+                            { color: categoriaConfig.color },
+                          ]}
+                        >
+                          {t.nombre}
                         </Text>
-                      </View>
-                      <Text style={[styles.iceName, { color: paleta.accent }]}>
-                        {prod.nombre}
-                      </Text>
-                      <Text style={styles.iceTipo}>{prod.tipo}</Text>
-                      <View
-                        style={[
-                          styles.pricePill,
-                          { backgroundColor: paleta.accent },
-                        ]}
-                      >
-                        <Text style={styles.icePrice}>${prod.precio}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
-              )}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* ========== TOPPINGS ========== */}
-        {categoriaActiva === "topping" && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: categoriaConfig.color }]}>
-              3. Endulza tu helado
-            </Text>
-            <Text style={styles.sectionSubtext}>
-              Añade los toppings que más te gusten ✨
-            </Text>
-            <View style={styles.grid}>
-              {toppings.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  No hay toppings disponibles.
-                </Text>
-              ) : (
-                toppings.map((top, idx) => {
-                  const paleta = HELADO_PALETAS[idx % HELADO_PALETAS.length];
-                  return (
-                    <TouchableOpacity
-                      key={`top-${top.id}`}
-                      style={[styles.topCard, { backgroundColor: paleta.bg }]}
-                      onPress={() => handleAdd(top, "topping")}
-                      activeOpacity={0.85}
-                    >
-                      <View
-                        style={[
-                          styles.emojiCircle,
-                          { backgroundColor: "white" },
-                        ]}
+          {/* ========== HELADOS ========== */}
+          {categoriaActiva === "helado" && (
+            <View style={styles.section}>
+              <Text
+                style={[styles.sectionHeader, { color: categoriaConfig.color }]}
+              >
+                Elige tu sabor
+              </Text>
+              <Text style={styles.sectionSubtext}>
+                Sabores deliciosos listos para ti 🍦
+              </Text>
+              <View style={styles.grid}>
+                {helados.length === 0 ? (
+                  <Text style={styles.emptyText}>
+                    No hay helados disponibles.
+                  </Text>
+                ) : (
+                  helados.map((prod, idx) => {
+                    const paleta = HELADO_PALETAS[idx % HELADO_PALETAS.length];
+                    return (
+                      <TouchableOpacity
+                        key={`prod-${prod.id}`}
+                        style={[styles.iceCard, { backgroundColor: paleta.bg }]}
+                        onPress={() => handleAdd(prod, "helado")}
+                        activeOpacity={0.85}
                       >
-                        <Text style={styles.emojiBig}>
-                          {getEmoji(top.nombre)}
+                        <View
+                          style={[
+                            styles.emojiCircle,
+                            { backgroundColor: "white" },
+                          ]}
+                        >
+                          <Text style={styles.emojiBig}>
+                            {getEmoji(prod.nombre)}
+                          </Text>
+                        </View>
+                        <Text style={[styles.iceName, { color: paleta.accent }]}>
+                          {prod.nombre}
                         </Text>
-                      </View>
-                      <Text style={[styles.topName, { color: paleta.accent }]}>
-                        {top.nombre}
-                      </Text>
-                      {top.descripcion && (
-                        <Text style={styles.topDesc} numberOfLines={1}>
-                          {top.descripcion}
-                        </Text>
-                      )}
-                      <View
-                        style={[
-                          styles.pricePill,
-                          { backgroundColor: paleta.accent },
-                        ]}
-                      >
-                        <Text style={styles.icePrice}>${top.precio}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
-              )}
+                        <Text style={styles.iceTipo}>{prod.tipo}</Text>
+                        <View
+                          style={[
+                            styles.pricePill,
+                            { backgroundColor: paleta.accent },
+                          ]}
+                        >
+                          <Text style={styles.icePrice}>${prod.precio}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
             </View>
-          </View>
-        )}
+          )}
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+          {/* ========== TOPPINGS ========== */}
+          {categoriaActiva === "topping" && (
+            <View style={styles.section}>
+              <Text
+                style={[styles.sectionHeader, { color: categoriaConfig.color }]}
+              >
+                Endulza tu helado
+              </Text>
+              <Text style={styles.sectionSubtext}>
+                Añade los toppings que más te gusten ✨
+              </Text>
+              <View style={styles.grid}>
+                {toppings.length === 0 ? (
+                  <Text style={styles.emptyText}>
+                    No hay toppings disponibles.
+                  </Text>
+                ) : (
+                  toppings.map((top, idx) => {
+                    const paleta = HELADO_PALETAS[idx % HELADO_PALETAS.length];
+                    return (
+                      <TouchableOpacity
+                        key={`top-${top.id}`}
+                        style={[styles.topCard, { backgroundColor: paleta.bg }]}
+                        onPress={() => handleAdd(top, "topping")}
+                        activeOpacity={0.85}
+                      >
+                        <View
+                          style={[
+                            styles.emojiCircle,
+                            { backgroundColor: "white" },
+                          ]}
+                        >
+                          <Text style={styles.emojiBig}>
+                            {getEmoji(top.nombre)}
+                          </Text>
+                        </View>
+                        <Text style={[styles.topName, { color: paleta.accent }]}>
+                          {top.nombre}
+                        </Text>
+                        {top.descripcion && (
+                          <Text style={styles.topDesc} numberOfLines={1}>
+                            {top.descripcion}
+                          </Text>
+                        )}
+                        <View
+                          style={[
+                            styles.pricePill,
+                            { backgroundColor: paleta.accent },
+                          ]}
+                        >
+                          <Text style={styles.icePrice}>${top.precio}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            </View>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
@@ -379,7 +428,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 20,
+    paddingTop: STATUS_BAR_PADDING,
   },
   loadingCenter: {
     flex: 1,
@@ -393,24 +442,37 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 15,
   },
-  header: {
-    paddingHorizontal: 20,
-    marginBottom: 18,
+  welcomeSection: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 22,
+    alignItems: "center",
   },
   brandTitle: {
-    fontSize: 34,
+    fontSize: 36,
     fontWeight: "900",
     color: "#1A1A1A",
-    textAlign: "center",
-    marginTop: 10,
     letterSpacing: -0.5,
-  },
-  subTitle: {
-    fontSize: 16,
-    color: "#666",
+    marginBottom: 14,
     textAlign: "center",
-    marginTop: 4,
-    fontWeight: "500",
+  },
+  tagline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  taglineLine: {
+    width: 28,
+    height: 2,
+    backgroundColor: "#FF4D94",
+    borderRadius: 1,
+  },
+  taglineText: {
+    fontSize: 15,
+    color: "#FF4D94",
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
 
   // TABS
@@ -471,52 +533,36 @@ const styles = StyleSheet.create({
     width: "100%",
   },
 
-  // TAMAÑO
-  tamanoColumn: {
-    gap: 14,
-  },
-  tamanoCard: {
+  // TAMAÑO - tarjetas pequeñas en fila
+  tamanoGrid: {
     flexDirection: "row",
-    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  tamanoCardSmall: {
+    flex: 1,
     backgroundColor: "white",
-    padding: 16,
-    borderRadius: 20,
-    gap: 16,
+    padding: 14,
+    borderRadius: 18,
+    alignItems: "center",
     shadowColor: "#000",
     shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-    marginBottom: 12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
-  tamanoIcon: {
-    width: 95,
-    height: 95,
-    borderRadius: 22,
+  tamanoIconSmall: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 10,
   },
-  tamanoName: {
-    fontSize: 20,
+  tamanoNameSmall: {
+    fontSize: 14,
     fontWeight: "800",
-    color: "#1A1A1A",
-    marginBottom: 8,
-  },
-  freeBadge: {
-    flexDirection: "row",
-    alignSelf: "flex-start",
-    alignItems: "center",
-    backgroundColor: "#C8E6C9",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    gap: 4,
-  },
-  freeText: {
-    color: "#2E7D32",
-    fontWeight: "800",
-    fontSize: 12,
-    letterSpacing: 0.5,
+    textAlign: "center",
   },
 
   // HELADOS / TOPPINGS GRID

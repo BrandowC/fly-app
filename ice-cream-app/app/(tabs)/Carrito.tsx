@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useCart } from "../../context/CartContext";
+import api from "../../services/api";
 
 // Mismas paletas que en home.tsx para mantener coherencia visual
 const PALETAS = [
@@ -110,7 +111,39 @@ export default function CarritoScreen() {
     notas: "",
   });
 
-  const enviarWhatsApp = () => {
+  // Convierte los items del carrito al formato que espera el backend
+  const buildItemsForBackend = () => {
+    const items: { productoId: number; toppingId?: number }[] = [];
+
+    // Buscamos un producto (helado o tamaño) para "anclar" los toppings
+    const productoAncla = cart.find(
+      (i) => i.id.startsWith("helado-") || i.id.startsWith("tamano-"),
+    );
+    const productoAnclaId = productoAncla
+      ? Number(productoAncla.id.split("-")[1])
+      : null;
+
+    for (const item of cart) {
+      const [categoria, idStr] = item.id.split("-");
+      const id = Number(idStr);
+      if (!id) continue;
+
+      // Duplicamos el detalle por cada unidad en la cantidad
+      for (let i = 0; i < item.quantity; i++) {
+        if (categoria === "topping") {
+          if (productoAnclaId) {
+            items.push({ productoId: productoAnclaId, toppingId: id });
+          }
+        } else {
+          items.push({ productoId: id });
+        }
+      }
+    }
+
+    return items;
+  };
+
+  const enviarWhatsApp = async () => {
     if (
       !cliente.nombre ||
       !cliente.direccion ||
@@ -129,6 +162,30 @@ export default function CarritoScreen() {
       return;
     }
 
+    const items = buildItemsForBackend();
+    if (items.length === 0) {
+      Alert.alert("Error", "No hay productos válidos en el carrito.");
+      return;
+    }
+
+    // 1) Guardar el pedido en el backend
+    try {
+      await api.post("/pedidos", {
+        clienteNombre: cliente.nombre,
+        telefono: cliente.celular,
+        direccion: `${cliente.direccion}, Barrio ${cliente.barrio}`,
+        items,
+      });
+    } catch (error: any) {
+      console.log("Error guardando pedido:", error?.response?.data || error?.message);
+      Alert.alert(
+        "Error al enviar",
+        "No se pudo registrar tu pedido. Revisa tu conexión e inténtalo de nuevo.",
+      );
+      return;
+    }
+
+    // 2) Abrir WhatsApp con el resumen
     const mensaje =
       `*🍦 NUEVO PEDIDO - ICE CREAM APP*\n\n` +
       `*Cliente:* ${cliente.nombre}\n` +
@@ -143,6 +200,9 @@ export default function CarritoScreen() {
 
     const url = `https://wa.me/573043800967?text=${encodeURIComponent(mensaje)}`;
     Linking.openURL(url);
+
+    // 3) Limpiar el carrito después de enviar
+    clearCart();
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -160,14 +220,11 @@ export default function CarritoScreen() {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* HEADER */}
-      <View style={styles.headerBox}>
-        <View>
-          <Text style={styles.headerTitle}>Mi Pedido 🛒</Text>
-          <Text style={styles.headerSubtitle}>
-            {totalItems} {totalItems === 1 ? "producto" : "productos"}
-          </Text>
-        </View>
+      {/* Resumen superior (sin título duplicado, ya está en el header del tab) */}
+      <View style={styles.summaryBar}>
+        <Text style={styles.summaryCount}>
+          {totalItems} {totalItems === 1 ? "producto" : "productos"}
+        </Text>
         <View style={styles.headerTotalPill}>
           <Text style={styles.headerTotalLabel}>Total</Text>
           <Text style={styles.headerTotalValue}>${totalPrice}</Text>
@@ -251,7 +308,7 @@ export default function CarritoScreen() {
       <View style={styles.formCard}>
         <View style={styles.formHeader}>
           <View style={styles.formHeaderIcon}>
-            <Ionicons name="bicycle" size={26} color="white" />
+            <Text style={styles.formHeaderEmoji}>🏍️</Text>
           </View>
           <View>
             <Text style={styles.formTitle}>Datos de Entrega</Text>
@@ -349,6 +406,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 10,
+  },
+  summaryBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
+  },
+  summaryCount: {
+    fontSize: 15,
+    color: "#666",
+    fontWeight: "700",
   },
   headerTitle: {
     fontSize: 28,
@@ -491,6 +561,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF4D94",
     alignItems: "center",
     justifyContent: "center",
+  },
+  formHeaderEmoji: {
+    fontSize: 26,
   },
   formTitle: {
     fontSize: 18,

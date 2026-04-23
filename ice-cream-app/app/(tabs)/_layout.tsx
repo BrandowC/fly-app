@@ -68,7 +68,7 @@ export default function TabLayout() {
         name="home"
         options={{
           title: "Inicio",
-          headerTitle: "Ice Cream App 🍦",
+          headerShown: false,
           tabBarIcon: ({ focused }) => (
             <TabPill focused={focused} icon="home" color="#FF4D94" />
           ),

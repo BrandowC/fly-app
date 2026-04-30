@@ -156,7 +156,12 @@ export default function HomeScreen() {
       price: item.price || item.precio || 0,
       quantity: 1,
     });
-    Alert.alert("¡Añadido!", `${item.nombre} se agregó a tu Ice Cream.`);
+
+    // Solo mostrar notificación cuando se escoge un sabor o topping.
+    // Al escoger tamaño (base del pedido) se agrega silenciosamente.
+    if (categoria === "helado" || categoria === "topping") {
+      Alert.alert("¡Añadido!", `${item.nombre} se agregó a tu Ice Cream.`);
+    }
   };
 
   const categoriaConfig = CATEGORIAS.find((c) => c.key === categoriaActiva)!;

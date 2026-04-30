@@ -147,27 +147,45 @@ export default function AdminScreen() {
   };
 
   const saveHelado = async () => {
-    if (!formData.nombre || !formData.precio) {
-      Alert.alert("Faltan datos", "Nombre y precio son obligatorios");
+    const nombre = String(formData.nombre || "").trim();
+    const tipo = String(formData.tipo || "CREMA").trim();
+    const precioNum = Number(formData.precio);
+
+    if (!nombre) {
+      Alert.alert("Faltan datos", "El nombre es obligatorio");
       return;
     }
+    if (!tipo) {
+      Alert.alert("Faltan datos", "Selecciona un tipo (CREMA, AGUA o TAMAÑO)");
+      return;
+    }
+    if (isNaN(precioNum) || precioNum < 0) {
+      Alert.alert("Precio inválido", "El precio debe ser un número mayor o igual a 0");
+      return;
+    }
+
     try {
       const payload = {
-        nombre: formData.nombre,
-        tipo: formData.tipo,
-        precio: Number(formData.precio),
+        nombre,
+        tipo,
+        precio: precioNum,
         disponible: formData.disponible !== false,
       };
+
       if (editingItem) {
         await api.patch(`/productos/${editingItem.id}`, payload);
       } else {
         await api.post("/productos", payload);
       }
+
       setModalVisible(false);
       fetchAll();
       Alert.alert("Éxito", editingItem ? "Producto actualizado" : "Producto creado");
     } catch (error: any) {
-      Alert.alert("Error", error?.response?.data?.message?.toString() || "No se pudo guardar");
+      console.log("Error guardando helado:", error?.response?.data);
+      const msg = error?.response?.data?.message;
+      const mensaje = Array.isArray(msg) ? msg.join("\n") : msg || "No se pudo guardar";
+      Alert.alert("Error al guardar", String(mensaje));
     }
   };
 
@@ -206,28 +224,41 @@ export default function AdminScreen() {
   };
 
   const saveTopping = async () => {
-    if (!formData.nombre || !formData.precio) {
-      Alert.alert("Faltan datos", "Nombre y precio son obligatorios");
+    const nombre = String(formData.nombre || "").trim();
+    const precioNum = Number(formData.precio);
+    const descripcion = String(formData.descripcion || "").trim();
+
+    if (!nombre) {
+      Alert.alert("Faltan datos", "El nombre es obligatorio");
       return;
     }
+    if (isNaN(precioNum) || precioNum < 0) {
+      Alert.alert("Precio inválido", "El precio debe ser un número mayor o igual a 0");
+      return;
+    }
+
     try {
       const payload: any = {
-        nombre: formData.nombre,
-        precio: Number(formData.precio),
+        nombre,
+        precio: precioNum,
         disponible: formData.disponible !== false,
       };
-      if (formData.descripcion) payload.descripcion = formData.descripcion;
+      if (descripcion) payload.descripcion = descripcion;
 
       if (editingItem) {
         await api.patch(`/toppings/${editingItem.id}`, payload);
       } else {
         await api.post("/toppings", payload);
       }
+
       setModalVisible(false);
       fetchAll();
       Alert.alert("Éxito", editingItem ? "Topping actualizado" : "Topping creado");
     } catch (error: any) {
-      Alert.alert("Error", error?.response?.data?.message?.toString() || "No se pudo guardar");
+      console.log("Error guardando topping:", error?.response?.data);
+      const msg = error?.response?.data?.message;
+      const mensaje = Array.isArray(msg) ? msg.join("\n") : msg || "No se pudo guardar";
+      Alert.alert("Error al guardar", String(mensaje));
     }
   };
 

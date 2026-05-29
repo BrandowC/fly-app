@@ -1,0 +1,8 @@
+version: "3"
+agent:
+  authtoken: 3CG82jsyvRDxVKJPB6WMeBZEHaz_49vrRjanVWs29aqqnF1E8
+region: us
+tunnels:
+  expo:
+    proto: http
+    addr: 8081
